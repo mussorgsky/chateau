@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Château</title>
+
+    <style>
+        body {
+            margin: 0;
+            background: #cedbf7;
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .window {
+            background: white;
+            padding: 1em;
+            border-radius: 1em;
+            margin: 1em;
+        }
+
+        #messages {
+            padding: 1em 0;
+        }
+
+        .message {
+            padding: 1em;
+            border-radius: 0 1em 1em 0;
+            margin: 0 4em 1em 0;
+            background: #999;
+            color: white;
+        }
+
+        .message.own {
+            border-radius: 1em 0 0 1em;
+            margin: 0 0 1em 4em;
+            background: royalblue;
+            color: white;
+        }
+
+        .message:last-child {
+            margin-bottom: 0;
+        }
+
+        .author {
+            font-weight: bold;
+        }
+
+        .message time {
+            float: right;
+        }
+
+        .author,
+        .message time {
+            font-size: 0.75em;
+            margin-top: 0.75em;
+            margin-bottom: 0;
+            display: inline-block;
+        }
+
+        .text {
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <form class="window" id="signup" onsubmit="signup(event)">
+        <label for="name">Enter your nickname</label>
+        <input type="text" name="name">
+        <button type="submit">Sign up</button>
+    </form>
+
+    <div class="window" id="messages">
+
+    </div>
+
+    <form class="window" id="send" onsubmit="send(event)">
+        <label for="message">Enter your message</label>
+        <input type="text" name="message" id="messagetext">
+        <button type="submit">Send</button>
+    </form>
+
+    <script>
+        let cookie = '';
+        let nickname = '';
+        const messages = [];
+        let lastTime = 0;
+        let refreshTime = 2000;
+
+        const signup = (e) => {
+            e.preventDefault();
+
+            const form = new FormData(document.getElementById('signup'));
+
+            const request = new XMLHttpRequest();
+            request.open('POST', '/signup', true);
+
+            request.onload = () => {
+                if (request.status == 201) {
+                    const response = JSON.parse(request.responseText);
+                    cookie = String(response.cookie);
+                    nickname = String(response.name);
+                }
+            }
+
+            request.send('name=' + encodeURIComponent(form.get('name')));
+        }
+
+        const send = (e) => {
+            e.preventDefault();
+
+            const form = new FormData(document.getElementById('send'));
+
+            if (form.get('message').length > 0) {
+                const request = new XMLHttpRequest();
+                request.open('POST', '/send', true);
+
+                request.onload = () => {
+                    if (request.status == 201) {
+                        const response = JSON.parse(request.responseText);
+                        console.log(response);
+                        document.getElementById('messagetext').value = '';
+                        loadMessages(false);
+                    }
+                }
+
+                request.send('cookie=' + encodeURIComponent(cookie) + '&message=' + encodeURIComponent((form.get(
+                    'message'))));
+            }
+        }
+
+        const loadMessages = (loop) => {
+            const request = new XMLHttpRequest();
+            request.open('GET', '/messages?after=' + encodeURIComponent(lastTime), true);
+
+            request.onload = () => {
+                if (request.status == 200) {
+                    const response = JSON.parse(request.responseText);
+                    messages.concat(response)
+                    console.log(response);
+
+                    if (response.length > 0) {
+                        lastTime = response[response.length - 1].time;
+
+                        const list = document.getElementById('messages');
+
+                        for (const m of response) {
+                            let element = document.createElement('div');
+                            element.className = (m.user == nickname) ? 'message own' : 'message';
+
+                            let author = document.createElement('p');
+                            author.className = 'author';
+                            author.textContent = m.user;
+
+                            let details = document.createElement('div');
+                            details.className = 'details';
+
+                            let time = document.createElement('time');
+                            time.setAttribute('datetime', new Date(m.time).toISOString());
+                            time.textContent = new Date(m.time).toLocaleString();
+
+                            let text = document.createElement('p');
+                            text.className = 'text';
+                            text.textContent = m.message;
+
+                            details.appendChild(author);
+                            details.appendChild(time);
+
+                            element.appendChild(text);
+                            element.appendChild(details);
+
+                            list.appendChild(element);
+                        }
+                    }
+                }
+            }
+
+            request.send();
+
+            if (loop) {
+                setTimeout(() => {
+                    loadMessages(loop);
+                }, refreshTime);
+            }
+        }
+
+        loadMessages(true);
+    </script>
+</body>
+
+</html>
